@@ -8,7 +8,12 @@ const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'stayease_super_secure_jwt_secret_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  console.error('ERROR: JWT_SECRET must be configured with at least 32 characters.');
+  process.exit(1);
+}
 
 app.use(cors());
 app.use(express.json());
@@ -560,12 +565,12 @@ app.patch('/api/admin/reservations/:id/status', authenticateToken, requireAdmin,
 // ============================================================================
 
 // Retrieve active users (customers) for booking selection
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT user_id, full_name, email, phone, role 
-      FROM users 
-      WHERE is_active = true 
+      SELECT user_id, full_name, email, role
+      FROM users
+      WHERE is_active = true
       ORDER BY user_id ASC;
     `);
 
@@ -576,10 +581,12 @@ app.get('/api/users', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching users:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
   }
 });
-
 // Check Room Availability
 // Uses NOT EXISTS to exclude physical rooms having overlapping pending, confirmed, or checked_in reservations
 app.post('/api/availability', async (req, res) => {
